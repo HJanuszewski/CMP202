@@ -1,0 +1,16 @@
+
+*.opendb
+*.db
+*.db-shm
+*.db-wal
+*.ipch
+*.obj
+*.exe
+*.log
+*.tlog
+*.idb
+*.pdb
+*.txt
+*.recipe
+Mandelbrot/.vs/Mandelbrot/v16/.suo
+*.ilk
