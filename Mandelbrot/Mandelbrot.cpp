@@ -32,3 +32,10 @@ void Mandelbrot::generate(double left, double right, double top, double bot) // 
 
 	}
 }
+
+void Mandelbrot::generate_GPU(double left, double right, double top, double bot)
+{
+	//std::vector<uint32_t> vec(height * width);
+	concurrency::extent<2> ext(height, width);
+	concurrency::array_view<uint32_t, 2> arr_d(ext, Mandelbrot::image);
+}
