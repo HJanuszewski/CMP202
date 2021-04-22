@@ -3,6 +3,8 @@
 #include <fstream>
 #include "Mandelbrot.h"
 
+
+
 void write_tga(const char* filename, uint32_t image[height][width] ) // Same write function as the lab example, with very minor changes
 {
 	std::ofstream outfile(filename, std::ofstream::binary);
@@ -49,10 +51,12 @@ int main()
 
 	std::cout << "Welcome! INSERT THE OPTIONS N STUFF HERE, please wait" << std::endl;
 	Mandelbrot* image = new Mandelbrot;
-	std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // start point of the timing.
-	image->generate(-2.0,1.0,1.125,-1.125);
+	std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // start point of the timing
+	image->generate_nested_parallel_for(-2.0, 1.0, 1.125, -1.125);
+	
 	std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // stop point of the timing.
-	write_tga("output.tga",image->image);
+	write_tga("output.tga", image->image);
 	std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
+	
 	return 0;
 }
