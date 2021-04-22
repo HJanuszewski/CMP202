@@ -50,7 +50,7 @@ bool Mandelbrot::compute_single_pixel(std::complex<double> c)
 
 // ---------- PARALLEL FUNCTIONS (UNIQUE LOCK MUTEX) ----------
 
-void Mandelbrot::generate_parallel_for(double left, double right, double top, double bot)
+void Mandelbrot::generate_parallel_for(double left, double right, double top, double bot, uint32_t (&img)[height][width])
 {
 
 	std::mutex image_mut;
@@ -72,12 +72,48 @@ void Mandelbrot::generate_parallel_for(double left, double right, double top, do
 			if (it == iterations)
 			{
 				std::unique_lock<std::mutex> lock(image_mut);
-				Mandelbrot::image[i][x] = 0x000000; //black
+				img[i][x] = 0x000000; //black
 			}
 			else
 			{
 				std::unique_lock<std::mutex> lock(image_mut);
-				Mandelbrot::image[i][x] = 0xFFFFFF; //while
+				img[i][x] = 0xFFFFFF; //while
+			}
+		}
+		});
+
+
+
+}
+
+void Mandelbrot::generate_parallel_for(double left, double right, double top, double bot, std::atomic<uint32_t> (&img)[height][width])
+{
+	
+	
+	tbb::parallel_for(0, height, [&](int i) {
+
+		for (int x = 0; x < width; x++)
+		{
+			std::complex<double> c(left + (x * (right - left) / width), top + (i * (bot - top) / height));
+			std::complex<double> z(0.0, 0.0);
+			int it = 0;
+
+			while (abs(z) < 2.0 && it < iterations)
+			{
+				z = (z * z) + c;
+
+				++it;
+			}
+
+			if (it == iterations)
+			{
+				
+				img[i][x] = 0x000000; //black
+			}
+			else
+			{
+				
+				img[i][x] = 0xFFFFFF; //while
 			}
 		}
 		});
