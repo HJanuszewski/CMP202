@@ -3,14 +3,13 @@
 
 
 
-
-
 int main()
 {
 	int selection = 0;
 	bool atomic,colour;
 	double args[4];
-	uint32_t bg_colour, fg_colour;
+	uint32_t bg_colour = 0xFFFFFF;
+	uint32_t fg_colour = 0x000000;
 	std::cout << "Welcome! Please make your selection!:" << std::endl << "1) Generate Mandelbrot set using the lab, non-parallel example" << std::endl << "2) Generate Mandelbrot set using single parallel_for" << std::endl << "3) Generate Mandelbrot set using nested parallel_for" << std::endl;
 	std::cin >> selection;
 	if (selection != 1)
@@ -43,49 +42,47 @@ int main()
 	switch (selection)
 	{
 	case 1:
-		image->generate_original(args);
+		image->generate_original(args, bg_colour, fg_colour);
 		break;
 	case 2:
 		if (atomic) 
 		{
-			image->generate_parallel_for(args,image->image_atomic);
+			image->generate_parallel_for(args, image->image_atomic, bg_colour, fg_colour);
 		}
 		else
 		{
-			image->generate_parallel_for(args, image->image);
+			image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
 		}
 		break;
 	case 3:
 		if (atomic)
 		{
-			image->generate_nested_parallel_for(args, image->image_atomic);
+			image->generate_nested_parallel_for(args, image->image_atomic, bg_colour, fg_colour);
 		}
 		else
 		{
-			image->generate_nested_parallel_for(args, image->image);
+			image->generate_nested_parallel_for(args, image->image, bg_colour, fg_colour);
 		}
 		break;
 	case 4:
 		if (atomic)
 		{
-			image->generate_nested_parallel_for_func(args, image->image_atomic);
+			image->generate_nested_parallel_for_func(args, image->image_atomic, bg_colour, fg_colour);
 		}
 		else
 		{
-			image->generate_nested_parallel_for_func(args, image->image);
+			image->generate_nested_parallel_for_func(args, image->image, bg_colour, fg_colour);
 		}
 	default:
 		break;
 	}
 
 
-	//Mandelbrot* image = new Mandelbrot;
-	//std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // start point of the timing
-	//image->generate_nested_parallel_for(-2.0, 1.0, 1.125, -1.125,image->image);
 	
+	//std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // start point of the timing
 	//std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // stop point of the timing.
 	//image->write_tga("output.tga", image->image);
-//	std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
+    //std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
 	
 	return 0;
 }

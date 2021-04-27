@@ -3,7 +3,7 @@
 
 // ---------- NON-PARALLEL FUNCTIONS ----------
 
-void Mandelbrot::generate_original(double values[4]) // regular, non-parallelized version of the funcion, running on the CPU
+void Mandelbrot::generate_original(double values[4], uint32_t bg_colour, uint32_t fg_colour) // regular, non-parallelized version of the funcion, running on the CPU
 {
 
 	for (int y = 0; y < height; y++) // those loops should be parallelized, as they go over every pixel, one at a time
@@ -23,11 +23,11 @@ void Mandelbrot::generate_original(double values[4]) // regular, non-parallelize
 
 			if (i == iterations)
 			{
-				Mandelbrot::image[y][x] = 0x000000; //black
+				Mandelbrot::image[y][x] = bg_colour;
 			}
 			else
 			{
-				Mandelbrot::image[y][x] = 0xFFFFFF; //while
+				Mandelbrot::image[y][x] = fg_colour;
 			}
 		}
 
@@ -35,9 +35,9 @@ void Mandelbrot::generate_original(double values[4]) // regular, non-parallelize
 	}
 }
 
-void Mandelbrot::write_tga(const char* filename, uint32_t img[height][width]) // Same write function as the lab example, with very minor changes
+void Mandelbrot::write_tga(const char* name, bool atomic) // Same write function as the lab example, with very minor changes
 {
-	std::ofstream outfile(filename, std::ofstream::binary);
+	std::ofstream outfile(name, std::ofstream::binary);
 
 
 	uint8_t header[18] = {
@@ -53,32 +53,48 @@ void Mandelbrot::write_tga(const char* filename, uint32_t img[height][width]) //
 		0, // image descriptor
 	};
 	outfile.write((const char*)header, 18);
-
-	for (int y = 0; y < height; ++y)
+	if (atomic)
 	{
-		for (int x = 0; x < width; ++x)
+		for (int y = 0; y < height; ++y)
 		{
-			uint8_t pixel[3] = {
-				img[y][x] & 0xFF, // blue channel
-				(img[y][x] >> 8) & 0xFF, // green channel
-				(img[y][x] >> 16) & 0xFF, // red channel
-			};
-			outfile.write((const char*)pixel, 3);
+			for (int x = 0; x < width; ++x)
+			{
+				uint8_t pixel[3] = {
+					 Mandelbrot::image[y][x] & 0xFF, // blue channel
+					(Mandelbrot::image[y][x] >> 8) & 0xFF, // green channel
+					(Mandelbrot::image[y][x] >> 16) & 0xFF, // red channel
+				};
+				outfile.write((const char*)pixel, 3);
+			}
 		}
 	}
-
+	else
+	{
+		for (int y = 0; y < height; ++y)
+		{
+			for (int x = 0; x < width; ++x)
+			{
+				uint8_t pixel[3] = {
+					 Mandelbrot::image_atomic[y][x] & 0xFF, // blue channel
+					(Mandelbrot::image_atomic[y][x] >> 8) & 0xFF, // green channel
+					(Mandelbrot::image_atomic[y][x] >> 16) & 0xFF, // red channel
+				};
+				outfile.write((const char*)pixel, 3);
+			}
+		}
+	}
 	outfile.close();
 	if (!outfile)
 	{
 		// An error has occurred at some point since we opened the file.
-		std::cout << "Error writing to " << filename << std::endl;
+		std::cout << "Error writing to " << name << std::endl;
 		exit(1);
 	}
 }
 
-void Mandelbrot::write_tga(const char* filename, std::atomic<uint32_t> img[height][width]) // Same write function as the lab example, with very minor changes
+void Mandelbrot::write_tga_thread(const char* name, bool atomic)
 {
-	std::ofstream outfile(filename, std::ofstream::binary);
+	std::ofstream outfile(name, std::ofstream::binary);
 
 
 	uint8_t header[18] = {
@@ -94,28 +110,30 @@ void Mandelbrot::write_tga(const char* filename, std::atomic<uint32_t> img[heigh
 		0, // image descriptor
 	};
 	outfile.write((const char*)header, 18);
-
-	for (int y = 0; y < height; ++y)
+	if (atomic)
 	{
-		for (int x = 0; x < width; ++x)
+		//insert some code that it supposed to handle signaling
+		// in this case, we need to wait for the LINE OR PIXEL (fugure out later or implement both) to finish being done before they are to be saved
+		for (int y = 0; y < height; y++)
 		{
-			uint8_t pixel[3] = {
-				img[y][x] & 0xFF, // blue channel
-				(img[y][x] >> 8) & 0xFF, // green channel
-				(img[y][x] >> 16) & 0xFF, // red channel
-			};
-			outfile.write((const char*)pixel, 3);
+			//block until the line with the ID of y is completed
+			for (int x = 0; x < width; x++)
+			{
+				uint8_t pixel[3] = {
+					 Mandelbrot::image_atomic[y][x] & 0xFF, // blue channel
+					(Mandelbrot::image_atomic[y][x] >> 8) & 0xFF, // green channel
+					(Mandelbrot::image_atomic[y][x] >> 16) & 0xFF, // red channel
+				};
+				outfile.write((const char*)pixel, 3);
+			}
 		}
 	}
-
-	outfile.close();
-	if (!outfile)
+	else
 	{
-		// An error has occurred at some point since we opened the file.
-		std::cout << "Error writing to " << filename << std::endl;
-		exit(1);
+
 	}
 }
+
 
 bool Mandelbrot::compute_single_pixel(std::complex<double> c)
 {
@@ -132,7 +150,7 @@ bool Mandelbrot::compute_single_pixel(std::complex<double> c)
 
 // ---------- PARALLEL FUNCTIONS -----------
 
-void Mandelbrot::generate_parallel_for(double values[4], uint32_t (&img)[height][width])
+void Mandelbrot::generate_parallel_for(double values[4], uint32_t (&img)[height][width], uint32_t bg_colour, uint32_t fg_colour)
 {
 
 	std::mutex image_mut;
@@ -154,12 +172,12 @@ void Mandelbrot::generate_parallel_for(double values[4], uint32_t (&img)[height]
 			if (it == iterations)
 			{
 				std::unique_lock<std::mutex> lock(image_mut);
-				img[i][x] = 0x5efc03; //black
+				img[i][x] = fg_colour; 
 			}
-			else// cokolwiek bo komputer to i tak ignoruje
+			else
 			{
 				std::unique_lock<std::mutex> lock(image_mut);
-				img[i][x] = 0xFFFFFF; //while
+				img[i][x] = bg_colour;
 			}
 		}
 		});
@@ -168,7 +186,7 @@ void Mandelbrot::generate_parallel_for(double values[4], uint32_t (&img)[height]
 
 }
 
-void Mandelbrot::generate_parallel_for(double values[4], std::atomic<uint32_t> (&img)[height][width])
+void Mandelbrot::generate_parallel_for(double values[4], std::atomic<uint32_t> (&img)[height][width], uint32_t bg_colour, uint32_t fg_colour)
 {
 	
 	
@@ -190,12 +208,12 @@ void Mandelbrot::generate_parallel_for(double values[4], std::atomic<uint32_t> (
 			if (it == iterations)
 			{
 				
-				img[i][x] = 0x5efc03; //black
+				img[i][x] = fg_colour; 
 			}
 			else
 			{
 				
-				img[i][x] = 0xFFFFFF; //while
+				img[i][x] = bg_colour; 
 			}
 		}
 		});
@@ -204,7 +222,7 @@ void Mandelbrot::generate_parallel_for(double values[4], std::atomic<uint32_t> (
 
 }
 
-void Mandelbrot::generate_nested_parallel_for(double values[4],  uint32_t (&img)[height][width])
+void Mandelbrot::generate_nested_parallel_for(double values[4],  uint32_t (&img)[height][width], uint32_t bg_colour, uint32_t fg_colour)
 {
 
 	std::mutex image_mut;
@@ -226,13 +244,13 @@ void Mandelbrot::generate_nested_parallel_for(double values[4],  uint32_t (&img)
 			if (it == iterations)
 			{
 				std::unique_lock<std::mutex> lock(image_mut);
-				img[i][j] = 0x5efc03; //black
+				img[i][j] = fg_colour;
 
 			}
 			else
 			{
 				std::unique_lock<std::mutex> lock(image_mut);
-				img[i][j] = 0xFFFFFF; //while
+				img[i][j] = bg_colour; 
 
 			}
 			});
@@ -242,7 +260,7 @@ void Mandelbrot::generate_nested_parallel_for(double values[4],  uint32_t (&img)
 
 }
 
-void Mandelbrot::generate_nested_parallel_for( double values[4],  std::atomic<uint32_t>(&img)[height][width])
+void Mandelbrot::generate_nested_parallel_for( double values[4],  std::atomic<uint32_t>(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour)
 {
 
 	
@@ -264,13 +282,13 @@ void Mandelbrot::generate_nested_parallel_for( double values[4],  std::atomic<ui
 			if (it == iterations)
 			{
 				
-				img[i][j] = 0x000000; //black
+				img[i][j] = fg_colour;
 				
 			}
 			else
 			{
 				
-				img[i][j] = 0xFFFFFF; //while
+				img[i][j] = bg_colour; 
 				
 			} 
 			});
@@ -280,7 +298,7 @@ void Mandelbrot::generate_nested_parallel_for( double values[4],  std::atomic<ui
 
 }
 
-void Mandelbrot::generate_nested_parallel_for_func(double values[4],  uint32_t(&img)[height][width])
+void Mandelbrot::generate_nested_parallel_for_func(double values[4],  uint32_t(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour)
 {
 
 	std::mutex image_mut;
@@ -291,13 +309,13 @@ void Mandelbrot::generate_nested_parallel_for_func(double values[4],  uint32_t(&
 			if (Mandelbrot::compute_single_pixel((values[0] + (j * (values[1]- values[0]) / width), values[2]+ (i * (values[3]- values[2]) / height))))
 			{
 				std::unique_lock<std::mutex> lock(image_mut);
-				img[i][j] = 0x5efc03; //black
+				img[i][j] = fg_colour;
 
 			}
 			else
 			{
 				std::unique_lock<std::mutex> lock(image_mut);
-				img[i][j] = 0xFFFFFF; //while
+				img[i][j] = bg_colour; 
 
 			}
 			});
@@ -307,7 +325,7 @@ void Mandelbrot::generate_nested_parallel_for_func(double values[4],  uint32_t(&
 
 }
 
-void Mandelbrot::generate_nested_parallel_for_func(double values[4], std::atomic<uint32_t>(&img)[height][width])
+void Mandelbrot::generate_nested_parallel_for_func(double values[4], std::atomic<uint32_t>(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour)
 {
 
 	
@@ -317,12 +335,12 @@ void Mandelbrot::generate_nested_parallel_for_func(double values[4], std::atomic
 
 			if (Mandelbrot::compute_single_pixel((values[0] + (j * (values[1]- values[0]) / width), values[2]+ (i * (values[3]- values[2]) / height))))
 			{
-				img[i][j] = 0x000000; //black
+				img[i][j] = fg_colour;
 
 			}
 			else
 			{
-				img[i][j] = 0xFFFFFF; //while
+				img[i][j] = bg_colour;
 
 			}
 			});
