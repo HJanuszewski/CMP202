@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 #include <complex>
-#include "tbb/parallel_for.h"
 #include <tbb/tbb.h>
 #include <vector>
 #include <iostream>
@@ -24,25 +23,22 @@ public:
 	std::mutex line_mutex[height];
 	std::condition_variable write_condition[height]; // create a condition variable for each line that will
 	bool line_completed[height] = { false }; //initialize the entire array to be false, since no line has been generated yet.
+
 	void generate_original(double values[4], uint32_t bg_colour, uint32_t fg_colour); // The original function that was used in the lab example for generating the set, not parallelised at all.
 	
 	void write_tga(const char* filename, bool atomic);
-	
 	void write_tga_thread(const char* filename, bool atomic);
 
 	
-	void generate_parallel_for(double values[4], uint32_t (&img)[height][width], uint32_t bg_colour, uint32_t fg_colour ); // A parallel version of the function, uses a for loop wrapped in a parallel_for from TBB in order to generate the set.
-	void generate_parallel_for(double values[4], std::atomic<uint32_t> (&img)[height][width], uint32_t bg_colour, uint32_t fg_colour);// And it's overloaded version with atomic instead of normal 2D array. This overload does not contain mutexes.
-
-	void generate_nested_parallel_for(double values[4], uint32_t(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour); // A parallel version of the function using nested parallel_for loops from TBB in order to generate the set.
-	void generate_nested_parallel_for(double values[4], std::atomic<uint32_t>(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour); // And it's overloaded version with atomic 2D array. This overload does not contain mutexes.
-
-	void generate_nested_parallel_for_func(double values[4],  uint32_t(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour); // A parallel version of the function using nested parallel_for loops from TBB, which call the compute_single_pixel separately. Slowest out of all parallel functions.
-	void generate_nested_parallel_for_func(double values[4],  std::atomic<uint32_t> (&img)[height][width], uint32_t bg_colour, uint32_t fg_colour);
+	template<typename T> void generate_parallel_for(double values[4], T (&img)[height][width], uint32_t bg_colour, uint32_t fg_colour );
+	template<typename T> void limited_generate_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads); 
+	
+	template<typename T> void generate_nested_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour); // A parallel version of the function using nested parallel_for loops from TBB in order to generate the set.
+	template<typename T> void limited_generate_nested_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads); 
+	
+	template<typename T> void generate_nested_parallel_for_func(double values[4],  T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour); // A parallel version of the function using nested parallel_for loops from TBB, which call the compute_single_pixel separately. Slowest out of all parallel functions.
+	template<typename T> void limited_generate_nested_parallel_for_func(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour,int threads); 
 	
 
-	///////////////////////////////////////////////////////////////////////////////////////////
-	//TODO ADD SIGNALING (SEMAPHORES OR STH) FOR THE SAVE TO FILE THREAD SO YOU MEET ALL REQS//
-	///////////////////////////////////////////////////////////////////////////////////////////
 };
 
