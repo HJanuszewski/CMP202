@@ -116,7 +116,7 @@ void Mandelbrot::write_tga_thread(const char* name, bool atomic)
 		// in this case, we need to wait for the LINE OR PIXEL (fugure out later or implement both) to finish being done before they are to be saved
 		for (int y = 0; y < height; y++)
 		{
-			std::unique_lock<std::mutex> ul(Mandelbrot::line_mutex);
+			std::unique_lock<std::mutex> ul(Mandelbrot::line_mutex[y]);
 			Mandelbrot::write_condition[y].wait(ul, [=] { if (Mandelbrot::line_completed[y]) return true; else return false; });
 			//block until the line with the ID of y is completed
 			for (int x = 0; x < width; x++)
@@ -132,7 +132,21 @@ void Mandelbrot::write_tga_thread(const char* name, bool atomic)
 	}
 	else
 	{
-
+		for (int y = 0; y < height; y++)
+		{
+			std::unique_lock<std::mutex> ul(Mandelbrot::line_mutex[y]);
+			Mandelbrot::write_condition[y].wait(ul, [=] { if (Mandelbrot::line_completed[y]) return true; else return false; });
+			//block until the line with the ID of y is completed
+			for (int x = 0; x < width; x++)
+			{
+				uint8_t pixel[3] = {
+					 Mandelbrot::image[y][x] & 0xFF, // blue channel
+					(Mandelbrot::image[y][x] >> 8) & 0xFF, // green channel
+					(Mandelbrot::image[y][x] >> 16) & 0xFF, // red channel
+				};
+				outfile.write((const char*)pixel, 3);
+			}
+		}
 	}
 }
 
@@ -160,7 +174,7 @@ void Mandelbrot::generate_parallel_for(double values[4], uint32_t (&img)[height]
 
 		for (int x = 0; x < width; x++)
 		{
-			std::lock_guard<std::mutex> lg(line_mutex);
+			std::lock_guard<std::mutex> lg(line_mutex[i]);
 			std::complex<double> c(values[0] + (x * (values[1] - values[0]) / width), values[2]+ (i * (values[3]- values[2]) / height));
 			std::complex<double> z(0.0, 0.0);
 			int it = 0;

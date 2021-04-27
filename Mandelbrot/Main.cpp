@@ -1,6 +1,63 @@
 #include <chrono>
 #include "Mandelbrot.h"
 
+void write_tga_thread(const char* name, bool atomic, Mandelbrot* image)
+{
+	std::ofstream outfile(name, std::ofstream::binary);
+	
+	uint8_t header[18] = {
+		0, // no image ID
+		0, // no colour map
+		2, // uncompressed 24-bit image
+		0, 0, 0, 0, 0, // empty colour map specification
+		0, 0, // X origin
+		0, 0, // Y origin
+		width & 0xFF, (width >> 8) & 0xFF, // width
+		height & 0xFF, (height >> 8) & 0xFF, // height
+		24, // bits per pixel
+		0, // image descriptor
+	};
+	outfile.write((const char*)header, 18);
+	if (atomic)
+	{
+		//insert some code that it supposed to handle signaling
+		// in this case, we need to wait for the LINE OR PIXEL (fugure out later or implement both) to finish being done before they are to be saved
+		for (int y = 0; y < height; y++)
+		{
+			std::unique_lock<std::mutex> ul(image->line_mutex[y]);
+			image->write_condition[y].wait(ul, [&] { if (image->line_completed[y]) return true; else return false; });
+			//block until the line with the ID of y is completed
+			for (int x = 0; x < width; x++)
+			{
+				uint8_t pixel[3] = {
+					 image->image_atomic[y][x] & 0xFF, // blue channel
+					(image->image_atomic[y][x] >> 8) & 0xFF, // green channel
+					(image->image_atomic[y][x] >> 16) & 0xFF, // red channel
+				};
+				outfile.write((const char*)pixel, 3);
+			}
+		}
+	}
+	else
+	{
+		for (int y = 0; y < height; y++)
+		{
+			std::unique_lock<std::mutex> ul(image->line_mutex[y]);
+			image->write_condition[y].wait(ul, [&] { if (image->line_completed[y]) return true; else return false; });
+			//block until the line with the ID of y is completed
+			for (int x = 0; x < width; x++)
+			{
+				uint8_t pixel[3] = {
+					 image->image[y][x] & 0xFF, // blue channel
+					(image->image[y][x] >> 8) & 0xFF, // green channel
+					(image->image[y][x] >> 16) & 0xFF, // red channel
+				};
+				outfile.write((const char*)pixel, 3);
+			}
+		}
+	}
+}
+
 
 
 int main()
@@ -29,13 +86,13 @@ int main()
 
 	std::cout << "Please input the left,right,top and bottom values to be used when creating the set:" << std::endl;
 	std::cout << "Left: ";
-	std::cin >> args[0];
+	std::cin >> args[0]; // -2.0
 	std::cout << "Right: ";
-	std::cin >> args[1];
+	std::cin >> args[1]; // 1.0
 	std::cout << "Top: ";
-	std::cin >> args[2];
+	std::cin >> args[2]; // 1.125
 	std::cout << "Bottom: ";
-	std::cin >> args[3];
+	std::cin >> args[3]; // -1.125
 
 
 	Mandelbrot* image = new Mandelbrot;
@@ -54,11 +111,17 @@ int main()
 		else
 		{
 			// TESTING FOR THE FILE WRITE THREAD GOES HERE
-			group.run([&] {
-				image->write_tga_thread("filename.tga",atomic);
-				image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
-				});
+			//group.run_and_wait([&] {
+				//write_tga_thread("filename.tga",atomic,image);
+				//});
+			std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+			std::thread writing (write_tga_thread,"filename.tga",atomic, image);
+			image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
 			//image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
+			writing.join();
+			//image->write_tga_thread("filename.tga",atomic);
+			std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+			std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
 		}
 		break;
 	case 3:
@@ -68,7 +131,11 @@ int main()
 		}
 		else
 		{
+			std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 			image->generate_nested_parallel_for(args, image->image, bg_colour, fg_colour);
+			//image->write_tga("filename.tga", atomic);
+			std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+			std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
 		}
 		break;
 	case 4:
