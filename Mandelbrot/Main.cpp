@@ -39,6 +39,8 @@ int main()
 
 
 	Mandelbrot* image = new Mandelbrot;
+	tbb::task_group group;
+
 	switch (selection)
 	{
 	case 1:
@@ -51,7 +53,12 @@ int main()
 		}
 		else
 		{
-			image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
+			// TESTING FOR THE FILE WRITE THREAD GOES HERE
+			group.run([&] {
+				image->write_tga_thread("filename.tga",atomic);
+				image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
+				});
+			//image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
 		}
 		break;
 	case 3:

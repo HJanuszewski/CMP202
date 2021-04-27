@@ -116,6 +116,8 @@ void Mandelbrot::write_tga_thread(const char* name, bool atomic)
 		// in this case, we need to wait for the LINE OR PIXEL (fugure out later or implement both) to finish being done before they are to be saved
 		for (int y = 0; y < height; y++)
 		{
+			std::unique_lock<std::mutex> ul(Mandelbrot::line_mutex);
+			Mandelbrot::write_condition[y].wait(ul, [=] { if (Mandelbrot::line_completed[y]) return true; else return false; });
 			//block until the line with the ID of y is completed
 			for (int x = 0; x < width; x++)
 			{
@@ -158,6 +160,7 @@ void Mandelbrot::generate_parallel_for(double values[4], uint32_t (&img)[height]
 
 		for (int x = 0; x < width; x++)
 		{
+			std::lock_guard<std::mutex> lg(line_mutex);
 			std::complex<double> c(values[0] + (x * (values[1] - values[0]) / width), values[2]+ (i * (values[3]- values[2]) / height));
 			std::complex<double> z(0.0, 0.0);
 			int it = 0;
@@ -173,6 +176,7 @@ void Mandelbrot::generate_parallel_for(double values[4], uint32_t (&img)[height]
 			{
 				std::unique_lock<std::mutex> lock(image_mut);
 				img[i][x] = fg_colour; 
+				
 			}
 			else
 			{
@@ -180,6 +184,9 @@ void Mandelbrot::generate_parallel_for(double values[4], uint32_t (&img)[height]
 				img[i][x] = bg_colour;
 			}
 		}
+		// here insert the thingy
+		Mandelbrot::line_completed[i] = true;
+		Mandelbrot::write_condition[i].notify_one();
 		});
 
 

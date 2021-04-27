@@ -2,9 +2,11 @@
 #include <cstdint>
 #include <complex>
 #include "tbb/parallel_for.h"
+#include <tbb/tbb.h>
 #include <vector>
 #include <iostream>
 #include <mutex>
+#include <condition_variable>
 #include <fstream>
 #define height 1080
 #define width 1920
@@ -15,7 +17,9 @@ class Mandelbrot
 private:
 	
 	bool compute_single_pixel(std::complex<double> c); // A piece of the original function, taking an already calculated c value and returning true/false depending on if that point exists in the set.
-	
+	std::mutex line_mutex;
+	std::condition_variable write_condition[height]; // create a condition variable for each line that will
+	bool line_completed[height] = {false}; //initialize the entire array to be false, since no line has been generated yet.
 public:
 	uint32_t image[height][width];
 	std::atomic<uint32_t> image_atomic[height][width];
