@@ -1,9 +1,52 @@
-#include <chrono>
-#include "Mandelbrot.h"
+#include "Main.h"
 
-void write_tga_thread(const char* name, bool atomic, Mandelbrot* image)
+ void write_tga(const char* name, std::uint32_t img[height][width]) // Same write function as the lab example, with very minor changes
 {
 	std::ofstream outfile(name, std::ofstream::binary);
+
+
+	uint8_t header[18] = {
+		0, // no image ID
+		0, // no colour map
+		2, // uncompressed 24-bit image
+		0, 0, 0, 0, 0, // empty colour map specification
+		0, 0, // X origin
+		0, 0, // Y origin
+		width & 0xFF, (width >> 8) & 0xFF, // width
+		height & 0xFF, (height >> 8) & 0xFF, // height
+		24, // bits per pixel
+		0, // image descriptor
+	};
+	outfile.write((const char*)header, 18);
+
+	for (int y = 0; y < height; ++y)
+	{
+		for (int x = 0; x < width; ++x)
+		{
+			uint8_t pixel[3] = {
+				 img[y][x] & 0xFF, // blue channel
+				(img[y][x] >> 8) & 0xFF, // green channel
+				(img[y][x] >> 16) & 0xFF, // red channel
+			};
+			outfile.write((const char*)pixel, 3);
+		}
+	}
+
+
+	outfile.close();
+	if (!outfile)
+	{
+		// An error has occurred at some point since we opened the file.
+		std::cout << "Error writing to " << name << std::endl;
+		exit(1);
+	}
+}
+
+
+ void write_tga_thread(const char* name, bool atomic, Mandelbrot* obj)
+{
+	std::ofstream outfile(name, std::ofstream::binary);
+	
 	
 	uint8_t header[18] = {
 		0, // no image ID
@@ -18,45 +61,42 @@ void write_tga_thread(const char* name, bool atomic, Mandelbrot* image)
 		0, // image descriptor
 	};
 	outfile.write((const char*)header, 18);
-	if (atomic)
-	{
-		//insert some code that it supposed to handle signaling
-		// in this case, we need to wait for the LINE OR PIXEL (fugure out later or implement both) to finish being done before they are to be saved
+	
+		
 		for (int y = 0; y < height; y++)
 		{
-			std::unique_lock<std::mutex> ul(image->line_mutex[y]);
-			image->write_condition[y].wait(ul, [&] { if (image->line_completed[y]) return true; else return false; });
+			std::unique_lock<std::mutex> ul(obj->line_mutex[y]);
+			obj->write_condition[y].wait(ul, [&] { if (obj->line_completed[y]) return true; else return false; });
 			//block until the line with the ID of y is completed
-			for (int x = 0; x < width; x++)
+			if (atomic)
 			{
-				uint8_t pixel[3] = {
-					 image->image_atomic[y][x] & 0xFF, // blue channel
-					(image->image_atomic[y][x] >> 8) & 0xFF, // green channel
-					(image->image_atomic[y][x] >> 16) & 0xFF, // red channel
-				};
-				outfile.write((const char*)pixel, 3);
+				for (int x = 0; x < width; x++)
+				{
+					uint8_t pixel[3] = {
+						 obj->image_atomic[y][x] & 0xFF, // blue channel
+						(obj->image_atomic[y][x] >> 8) & 0xFF, // green channel
+						(obj->image_atomic[y][x] >> 16) & 0xFF, // red channel
+					};
+					outfile.write((const char*)pixel, 3);
+				}
+			}
+			else
+			{
+				for (int x = 0; x < width; x++)
+				{
+					uint8_t pixel[3] = {
+						 obj->image[y][x] & 0xFF, // blue channel
+						(obj->image[y][x] >> 8) & 0xFF, // green channel
+						(obj->image[y][x] >> 16) & 0xFF, // red channel
+					};
+					outfile.write((const char*)pixel, 3);
+				}
 			}
 		}
-	}
-	else
-	{
-		for (int y = 0; y < height; y++)
-		{
-			std::unique_lock<std::mutex> ul(image->line_mutex[y]);
-			image->write_condition[y].wait(ul, [&] { if (image->line_completed[y]) return true; else return false; });
-			//block until the line with the ID of y is completed
-			for (int x = 0; x < width; x++)
-			{
-				uint8_t pixel[3] = {
-					 image->image[y][x] & 0xFF, // blue channel
-					(image->image[y][x] >> 8) & 0xFF, // green channel
-					(image->image[y][x] >> 16) & 0xFF, // red channel
-				};
-				outfile.write((const char*)pixel, 3);
-			}
-		}
-	}
+	
+	
 }
+
 
 
 
@@ -86,7 +126,7 @@ int main()
 		selection += manual_threads;
 		if (manual_threads)
 		{
-			std::cout << "Please input the number of threads you want to limit TBB to (Note: This will not affect the file-writing thread, should you choose to use it later):" << std::endl;
+			std::cout << "Please input the number of threads you want to limit TBB to (Note: This will not affect the file-writing thread. This thread runs in all configurations except the original, non parallel one. Writing to file is included in the timing!):" << std::endl;
 			std::cin >> threads;
 
 		}
@@ -119,98 +159,82 @@ int main()
 	{
 	case 100: // original code - no parallelization
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-		image->generate_original(args, bg_colour, fg_colour);
+		
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); //start the timer
+		image->generate_original(args, bg_colour, fg_colour); // generate the set using original, non-parallel code.
+		write_tga(filename,image->image);
+		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
+		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
 		
 		break;
 	}
 	case 211: // parallel for - atomic variable - thread limit 
 	{
-		image->limited_generate_parallel_for(args, image->image_atomic, bg_colour, fg_colour, threads);
-	
+		image->generate_parallel_for<std::atomic<std::uint32_t>> (args,image->image_atomic,bg_colour,fg_colour);
+		//image->limited_generate_parallel_for<std::atomic<std::uint32_t>>(args, image->image_atomic, bg_colour, fg_colour, threads);
 		break;
 	}
 	case 210: // parallel for - atomic variable - no thread limit
 	{
 		
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-		std::thread writing(write_tga_thread, filename, atomic, image);
-		image->generate_parallel_for(args, image->image_atomic, bg_colour, fg_colour);
-		writing.join();
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
 		break;
 	}
 	case 201: // parallel for - unique_lock - thread limit
 	{
-		image->limited_generate_parallel_for(args, image->image, bg_colour, fg_colour,threads);
-		// 201 - palallel for - lock - limited
+		
 		break;
 	}
 	case 200: // parallel for - unique_lock - no thread limit
 	{
 		
 		
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-		std::thread writing(write_tga_thread, filename, atomic, image);
-		image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
-		writing.join();
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
+		
 		break;
 	}
 	case 311: // nested parallel for - atomic variable - thread limit
 	{
-		// 311 -nested parallel for - atomic - limited
-		image->limited_generate_nested_parallel_for(args, image->image_atomic, bg_colour, fg_colour, threads);
+		
 		break;
 	}
 	case 310: // nested parallel for - atomic variable - no thread limit
 	{
 		
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-		image->limited_generate_nested_parallel_for(args, image->image, bg_colour, fg_colour, threads);
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
+		
 		break;
 	}
 	case 301: // nested parallel for - unique_lock - thread limit
 	{
 		// 301
-		image->generate_nested_parallel_for(args, image->image_atomic, bg_colour, fg_colour);
+		
 		break;
 	}
 	case 300: // nested parallel for - unique_lock - no thread limit
 	{
 		//300
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-		image->generate_nested_parallel_for(args, image->image, bg_colour, fg_colour);
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
-		break;
+		
 	}
 	case 411:
 	{
 		// 411
-		image->limited_generate_nested_parallel_for_func(args, image->image_atomic, bg_colour, fg_colour, threads);
+		
 		break;
 	}
 	case 410:
 	{
 		// 410
-		image->limited_generate_nested_parallel_for_func(args, image->image, bg_colour, fg_colour, threads);
+		
 		break;
 	}	
 	case 401:
 	{
 		// 401
-		image->generate_nested_parallel_for_func(args, image->image_atomic, bg_colour, fg_colour);
+		
 		break;
 	}
 	case 400:
 	{
 		// 400
-		image->generate_nested_parallel_for_func(args, image->image, bg_colour, fg_colour);
+		
 		break;
 	}
 	default:
