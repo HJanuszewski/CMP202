@@ -40,11 +40,7 @@ public:
 };
 
 // Using mandelbrot set example by Adam Sampson <a.sampson@abertay.ac.uk> as the base for this class
-
-
-
-/// The code below was originally in Mandelbrot.cpp, however it needed to be moved into this file, since linker was giving me errors about the templated functions
-
+//#include "Mandelbrot.h"
 
 // ---------- NON-PARALLEL FUNCTIONS ----------
 
