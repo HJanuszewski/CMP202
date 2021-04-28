@@ -105,8 +105,8 @@ int main()
 	int selection = 0;
 	int func;
 	int threads;
-	bool atomic,colour,manual_threads;
-	double args[4];
+	bool atomic,colour,manual_threads,manual_values;
+	double args[4] = { -2.0,1.0,1.125,-1.125 };
 	const char filename[15] = "Mandelbrot.tga";
 	uint32_t bg_colour = 0xFFFFFF;
 	uint32_t fg_colour = 0x000000;
@@ -141,21 +141,26 @@ int main()
 		std::cin >> std::hex >> fg_colour;
 	}
 	
-	std::cout << "Please input the left,right,top and bottom values to be used when creating the set:" << std::endl;
-	std::cout << "Left: ";
-	std::cin >> args[0]; // -2.0
-	std::cout << "Right: ";
-	std::cin >> args[1]; // 1.0
-	std::cout << "Top: ";
-	std::cin >> args[2]; // 1.125
-	std::cout << "Bottom: ";
-	std::cin >> args[3]; // -1.125
+	std::cout << "Do you want to manually input the 4 values used in generation instead of using the default ones? " << std::endl << "0) No" << std::endl << "1) yes " << std::endl;
+	std::cin >> manual_values;
+	if (manual_values)
+	{
+		std::cout << "Please input the left,right,top and bottom values to be used when creating the set:" << std::endl << "Original values are (-2.0,1.0,1.125,-1.125)" << std::endl;
+		std::cout << "Left: ";
+		std::cin >> args[0]; // -2.0
+		std::cout << "Right: ";
+		std::cin >> args[1]; // 1.0
+		std::cout << "Top: ";
+		std::cin >> args[2]; // 1.125
+		std::cout << "Bottom: ";
+		std::cin >> args[3]; // -1.125
+	}
 
 
 	Mandelbrot* image = new Mandelbrot;
 	
 
-	switch (selection)
+	switch (selection) 
 	{
 	case 100: // original code - no parallelization
 	{
@@ -165,8 +170,8 @@ int main()
 		write_tga(filename,image->image);
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
-		
 		break;
+
 	}
 	case 211: // parallel for - atomic variable - thread limit 
 	{
@@ -228,7 +233,7 @@ int main()
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
 		break;
-		break;
+		
 	}
 	case 301: // nested parallel for - unique_lock - thread limit
 	{
@@ -239,8 +244,7 @@ int main()
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
 		break;
-		
-		break;
+	
 	}
 	case 300: // nested parallel for - unique_lock - no thread limit
 	{
@@ -263,7 +267,6 @@ int main()
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
 		break;
 		
-		break;
 	}
 	case 410:
 	{
@@ -275,7 +278,6 @@ int main()
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
 		break;
 		
-		break;
 	}	
 	case 401:
 	{
@@ -287,7 +289,6 @@ int main()
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
 		break;
 		
-		break;
 	}
 	case 400:
 	{
@@ -299,19 +300,14 @@ int main()
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
 		break;
 		
-		break;
 	}
 	default:
 		break;
 	}
 
-
+	std::cout << "All done, you can now safely close.";
 	while (1)
 	static int x = std::getchar();
-	//std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // start point of the timing
-	//std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // stop point of the timing.
-	//image->write_tga("output.tga", image->image);
-    //std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
 	
 	return 0;
 }
