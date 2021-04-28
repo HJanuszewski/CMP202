@@ -65,8 +65,8 @@
 		
 		for (int y = 0; y < height; y++)
 		{
-			std::unique_lock<std::mutex> ul(obj->line_mutex[y]);
-			obj->write_condition[y].wait(ul, [&] { if (obj->line_completed[y]) return true; else return false; });
+			std::unique_lock<std::mutex> ul(obj->line_mutex[y]); //obtain the mutex and try to lock it
+			obj->write_condition[y].wait(ul, [&] { if (obj->line_completed[y]) return true; else return false; }); //check if the line we want to write is done, if not, block until woken up, if yes, proceed
 			//block until the line with the ID of y is completed
 			if (atomic)
 			{
@@ -104,14 +104,14 @@ int main()
 {
 	int selection = 0;
 	int func;
-	int threads;
+	int threads = 0;
 	bool atomic,colour,manual_threads,manual_values;
 	double args[4] = { -2.0,1.0,1.125,-1.125 };
 	const char filename[15] = "Mandelbrot.tga";
 	uint32_t bg_colour = 0xFFFFFF;
 	uint32_t fg_colour = 0x000000;
 
-
+	//'menu' code
 	std::cout << "Welcome! Please make your selection!:" << std::endl << "1) Generate Mandelbrot set using the lab, non-parallel example" << std::endl << "2) Generate Mandelbrot set using single parallel_for" << std::endl << "3) Generate Mandelbrot set using nested parallel_for" << std::endl << "4) Generate Mandelbrot set using nested parallel_for calls to a function" << std::endl;
 	std::cin >> func;
 	selection += 100 * func;
@@ -155,158 +155,136 @@ int main()
 		std::cout << "Bottom: ";
 		std::cin >> args[3]; // -1.125
 	}
-
-
-	Mandelbrot* image = new Mandelbrot;
 	
 
-	switch (selection) 
+	Mandelbrot* image = new Mandelbrot; //allocate a new mandelbrot object
+	std::chrono::steady_clock::time_point start,stop; // declare the start and stop point variables in the broader scope than start will be initialized in.
+	
+
+	switch (selection) // branch off based on user's choices
 	{
 	case 100: // original code - no parallelization
 	{
-		
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); //start the timer
-		image->generate_original(args, bg_colour, fg_colour); // generate the set using original, non-parallel code.
-		write_tga(filename,image->image);
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now();
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();													//start the timer
+		image->generate_original(args, bg_colour, fg_colour);																			// generate the set using original, non-parallel code.
+		write_tga(filename,image->image);																								// save the generated set into a file
 		break;
 
 	}
 	case 211: // parallel for - atomic variable - thread limit 
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
-		image->generate_parallel_for(args, image->image_atomic, bg_colour, fg_colour,threads);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();													// Start the clock
+		std::thread write(write_tga_thread, filename, atomic, image);																	// Start the file-writing thread
+		image->generate_parallel_for(args, image->image_atomic, bg_colour, fg_colour,threads);											// Call the generation function, which will call parallel_for, spawning threads (up to the set linit)
+		write.join();																													//Wait for the file-writing thread to finish. File-writing thread will only finish after all lines of the set are completed.
 		break;
 	}
 	case 210: // parallel for - atomic variable - no thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
-		image->generate_parallel_for(args, image->image_atomic, bg_colour, fg_colour);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();													// Start the clock
+		std::thread write(write_tga_thread, filename, atomic, image);																	// Start the file-writing thread
+		image->generate_parallel_for(args, image->image_atomic, bg_colour, fg_colour);													// Call the generation function, which will call parallel_for, spawning threads (TBB will automatically handle how many threads it needs
+		write.join();																													//Wait for the file-writing thread to finish. File-writing thread will only finish after all lines of the set are completed.
 		break;
 	}
 	case 201: // parallel for - unique_lock - thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); 
+		std::thread write(write_tga_thread, filename, atomic, image); 
 		image->generate_parallel_for(args, image->image, bg_colour, fg_colour,threads);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join(); 
 		break;
 	}
 	case 200: // parallel for - unique_lock - no thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); 
+		std::thread write(write_tga_thread, filename, atomic, image); 
 		image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join();
 		break;
 	}
 	case 311: // nested parallel for - atomic variable - thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+		std::thread write(write_tga_thread, filename, atomic, image);
 		image->generate_nested_parallel_for(args, image->image_atomic, bg_colour, fg_colour,threads);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join(); 
 		break;
 	}
 	case 310: // nested parallel for - atomic variable - no thread limit
 	{
 		
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); 
+		std::thread write(write_tga_thread, filename, atomic, image); 
 		image->generate_nested_parallel_for(args, image->image_atomic, bg_colour, fg_colour);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join(); 
 		break;
 		
 	}
 	case 301: // nested parallel for - unique_lock - thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+		std::thread write(write_tga_thread, filename, atomic, image); 
 		image->generate_nested_parallel_for(args, image->image, bg_colour, fg_colour, threads);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join(); 
 		break;
 	
 	}
 	case 300: // nested parallel for - unique_lock - no thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); 
+		std::thread write(write_tga_thread, filename, atomic, image); 
 		image->generate_nested_parallel_for(args, image->image, bg_colour, fg_colour);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join(); 
 		break;
 		
 	}
-	case 411:
+	case 411: // nested parallel for calling a function - atomic variable - thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); 
+		std::thread write(write_tga_thread, filename, atomic, image); 
 		image->generate_nested_parallel_for_func(args, image->image_atomic, bg_colour, fg_colour,threads);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join(); 
 		break;
 		
 	}
-	case 410:
+	case 410: // nested parallel for calling a function - atomic variable - no thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); 
+		std::thread write(write_tga_thread, filename, atomic, image); 
 		image->generate_nested_parallel_for_func(args, image->image_atomic, bg_colour, fg_colour);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join(); 
 		break;
 		
 	}	
-	case 401:
+	case 401: // nested parallel for calling a function - unique_lock - thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); 
+		std::thread write(write_tga_thread, filename, atomic, image); 
 		image->generate_nested_parallel_for_func(args, image->image, bg_colour, fg_colour, threads);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join();
 		break;
 		
 	}
-	case 400:
+	case 400: // nested parallel for calling a function - unique_lock - no thread limit
 	{
-		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		start = std::chrono::steady_clock::now(); 
+		std::thread write(write_tga_thread, filename, atomic, image); 
 		image->generate_nested_parallel_for_func(args, image->image, bg_colour, fg_colour);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
-		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
-		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
+		write.join(); 
 		break;
 		
 	}
 	default:
+		std::cout << "Something went wrong, you should not end up here, were all your inputs correct?" << std::endl;
 		break;
 	}
 
+	stop = std::chrono::steady_clock::now();																						//stop the timer
+	std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl;	// Display the time it took
+	
 	std::cout << "All done, you can now safely close.";
-	while (1)
+	while (1) //useless bit of code, that will prevent the window from closing on it's own after the program is finished
 	static int x = std::getchar();
 	
 	return 0;
