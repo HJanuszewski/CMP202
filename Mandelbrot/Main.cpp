@@ -113,7 +113,7 @@ int main()
 	uint32_t fg_colour = 0x000000;
 
 
-	std::cout << "Welcome! Please make your selection!:" << std::endl << "1) Generate Mandelbrot set using the lab, non-parallel example" << std::endl << "2) Generate Mandelbrot set using single parallel_for" << std::endl << "3) Generate Mandelbrot set using nested parallel_for" << std::endl;
+	std::cout << "Welcome! Please make your selection!:" << std::endl << "1) Generate Mandelbrot set using the lab, non-parallel example" << std::endl << "2) Generate Mandelbrot set using single parallel_for" << std::endl << "3) Generate Mandelbrot set using nested parallel_for" << std::endl << "4) Generate Mandelbrot set using nested parallel_for calls to a function" << std::endl;
 	std::cin >> func;
 	selection += 100 * func;
 	if (func != 1)
@@ -202,9 +202,10 @@ int main()
 	case 200: // parallel for - unique_lock - no thread limit
 	{
 		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
-		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
+		//std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
 		image->generate_parallel_for(args, image->image, bg_colour, fg_colour);
-		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
+		//write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
+		write_tga(filename,image->image);
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
 		break;
@@ -299,7 +300,7 @@ int main()
 	}
 
 
-	
+	std::getchar();
 	//std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // start point of the timing
 	//std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // stop point of the timing.
 	//image->write_tga("output.tga", image->image);
