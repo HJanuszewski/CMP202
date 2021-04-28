@@ -28,13 +28,13 @@ public:
 	
 	
 	template<typename T> void generate_parallel_for(double values[4], T (&img)[height][width], uint32_t bg_colour, uint32_t fg_colour );
-	template<typename T> void limited_generate_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads); 
+	template<typename T> void generate_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads); 
 	
 	template<typename T> void generate_nested_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour); // A parallel version of the function using nested parallel_for loops from TBB in order to generate the set.
-	template<typename T> void limited_generate_nested_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads); 
+	template<typename T> void generate_nested_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads); 
 	
 	template<typename T> void generate_nested_parallel_for_func(double values[4],  T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour); // A parallel version of the function using nested parallel_for loops from TBB, which call the compute_single_pixel separately. Slowest out of all parallel functions.
-	template<typename T> void limited_generate_nested_parallel_for_func(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour,int threads); 
+	template<typename T> void generate_nested_parallel_for_func(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour,int threads); 
 	
 
 };
@@ -68,11 +68,11 @@ void Mandelbrot::generate_original(double values[4], uint32_t bg_colour, uint32_
 
 			if (i == iterations)
 			{
-				Mandelbrot::image[y][x] = bg_colour;
+				Mandelbrot::image[y][x] = fg_colour;
 			}
 			else
 			{
-				Mandelbrot::image[y][x] = fg_colour;
+				Mandelbrot::image[y][x] = bg_colour;
 			}
 		}
 
@@ -141,7 +141,7 @@ template<typename T>void Mandelbrot::generate_parallel_for(double values[4], T(&
 }
 
 
-template<typename T>void Mandelbrot::limited_generate_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads)
+template<typename T>void Mandelbrot::generate_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads)
 {
 
 	std::mutex image_mut;  // Mutex used to safely share the 'img' array
@@ -223,7 +223,7 @@ template<typename T> void Mandelbrot::generate_nested_parallel_for(double values
 
 }
 
-template<typename T> void Mandelbrot::limited_generate_nested_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads)
+template<typename T> void Mandelbrot::generate_nested_parallel_for(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads)
 {
 
 	std::mutex image_mut;
@@ -293,7 +293,7 @@ template<typename T> void Mandelbrot::generate_nested_parallel_for_func(double v
 
 }
 
-template<typename T> void Mandelbrot::limited_generate_nested_parallel_for_func(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads)
+template<typename T> void Mandelbrot::generate_nested_parallel_for_func(double values[4], T(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads)
 {
 
 	std::mutex image_mut;

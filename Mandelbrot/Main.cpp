@@ -121,7 +121,7 @@ int main()
 		std::cin >> atomic;
 		selection += 10 * atomic;
 
-		std::cout << "Do you want to set number of threads generaitng the set manually? " << std::endl;
+		std::cout << "Do you want to set number of threads generaitng the set manually? " << std::endl << "0) No" << std::endl << "1) Yes" << std::endl;
 		std::cin >> manual_threads;
 		selection += manual_threads;
 		if (manual_threads)
@@ -136,9 +136,9 @@ int main()
 	if (colour)
 	{
 		std::cout << "Please input hex value for the background colour (e.g. 0xFFFFFF) ";
-		std::cin >> bg_colour;
+		std::cin >> std::hex >> bg_colour;
 		std::cout << std::endl << "Please input hex value for the foreground colour (e.g. 0x000000) ";
-		std::cin >> fg_colour;
+		std::cin >> std::hex >> fg_colour;
 	}
 	
 	std::cout << "Please input the left,right,top and bottom values to be used when creating the set:" << std::endl;
@@ -172,7 +172,7 @@ int main()
 	{
 		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
 		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
-		image->limited_generate_parallel_for(args, image->image_atomic, bg_colour, fg_colour,threads);
+		image->generate_parallel_for(args, image->image_atomic, bg_colour, fg_colour,threads);
 		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
@@ -192,7 +192,7 @@ int main()
 	{
 		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
 		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
-		image->limited_generate_parallel_for(args, image->image, bg_colour, fg_colour,threads);
+		image->generate_parallel_for(args, image->image, bg_colour, fg_colour,threads);
 		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
@@ -212,7 +212,7 @@ int main()
 	{
 		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
 		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
-		image->limited_generate_nested_parallel_for(args, image->image_atomic, bg_colour, fg_colour,threads);
+		image->generate_nested_parallel_for(args, image->image_atomic, bg_colour, fg_colour,threads);
 		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
@@ -234,7 +234,7 @@ int main()
 	{
 		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
 		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
-		image->limited_generate_nested_parallel_for(args, image->image, bg_colour, fg_colour, threads);
+		image->generate_nested_parallel_for(args, image->image, bg_colour, fg_colour, threads);
 		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
@@ -257,7 +257,7 @@ int main()
 	{
 		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
 		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
-		image->limited_generate_nested_parallel_for_func(args, image->image_atomic, bg_colour, fg_colour,threads);
+		image->generate_nested_parallel_for_func(args, image->image_atomic, bg_colour, fg_colour,threads);
 		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
@@ -281,7 +281,7 @@ int main()
 	{
 		std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // Start the clock
 		std::thread write(write_tga_thread, filename, atomic, image); // Start the file-writing thread
-		image->limited_generate_nested_parallel_for_func(args, image->image, bg_colour, fg_colour, threads);
+		image->generate_nested_parallel_for_func(args, image->image, bg_colour, fg_colour, threads);
 		write.join(); //Wait for the file-writing thread to finish. File-writing thread will only finish after all lines are completed.
 		std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // Stop the clock
 		std::cout << "It took " << std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count() << " ms" << std::endl; // Display the time it took to generate and write the set to a file.
@@ -306,7 +306,8 @@ int main()
 	}
 
 
-	std::getchar();
+	while (1)
+	static int x = std::getchar();
 	//std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now(); // start point of the timing
 	//std::chrono::steady_clock::time_point stop = std::chrono::steady_clock::now(); // stop point of the timing.
 	//image->write_tga("output.tga", image->image);
