@@ -11,15 +11,12 @@
 
 #define height 1080
 #define width 1920
-constexpr int iterations = 500; 
+#define iterations 500 
 
 // Using mandelbrot set example by Adam Sampson <a.sampson@abertay.ac.uk> as the base for this class
 class Mandelbrot
 {
-private:
-	
-	bool compute_single_pixel(std::complex<double> c); // A piece of the original function, taking an already calculated c value and returning true/false depending on if that point exists in the set.
-	
+
 public:
 
 	uint32_t image[height][width];
@@ -50,7 +47,7 @@ public:
 
 
 
-/// The code below was originally in Mandelbrot.cpp, however it needed to be moved into this file, since linker was giving me errors about the templated functions
+/// The code below was originally in Mandelbrot.cpp, however it needed to be moved into this file, since linker was giving me errors.
 
 
 // ---------- NON-PARALLEL FUNCTIONS ----------
@@ -87,19 +84,6 @@ void Mandelbrot::generate_original(double values[4], uint32_t bg_colour, uint32_
 	}
 }
 
-
-bool Mandelbrot::compute_single_pixel(std::complex<double> c) // this is the function called by the generate_nested_parallel_for_func. It decides if a single pixes does or does not belong to the set
-{
-	std::complex<double> z(0.0, 0.0);
-	int it = 0;
-	while (abs(z) < 2.0 && it < iterations)
-	{
-		z = (z * z) + c; it++;
-	}
-	if (it == iterations)
-		return true;
-	else return false;
-}
 
 // ---------- PARALLEL FUNCTIONS -----------
 
@@ -438,132 +422,6 @@ template<> void Mandelbrot::generate_nested_parallel_for<std::atomic<std::uint32
 			});
 		});
 
-
-
-
-}
-
-template<> void Mandelbrot::generate_nested_parallel_for_func<std::uint32_t>(double values[4], std::uint32_t(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour)
-{
-
-	std::mutex image_mut;
-	tbb::parallel_for(0, height, [&](int i) {
-		std::lock_guard<std::mutex> lg(line_mutex[i]);
-		tbb::parallel_for(0, width, [&](int j) {
-
-			if (Mandelbrot::compute_single_pixel((values[0] + (j * (values[1] - values[0]) / width), values[2] + (i * (values[3] - values[2]) / height))))
-			{
-				std::unique_lock<std::mutex> lock(image_mut);
-				img[i][j] = fg_colour;
-
-			}
-			else
-			{
-				std::unique_lock<std::mutex> lock(image_mut);
-				img[i][j] = bg_colour;
-
-			}
-			});
-		Mandelbrot::line_completed[i] = true;
-		Mandelbrot::write_condition[i].notify_one();
-		});
-
-
-
-}
-
-template<> void Mandelbrot::generate_nested_parallel_for_func<std::atomic<std::uint32_t>>(double values[4], std::atomic<std::uint32_t>(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour)
-{
-
-	
-	tbb::parallel_for(0, height, [&](int i) {
-		std::lock_guard<std::mutex> lg(line_mutex[i]);
-		tbb::parallel_for(0, width, [&](int j) {
-
-			if (Mandelbrot::compute_single_pixel((values[0] + (j * (values[1] - values[0]) / width), values[2] + (i * (values[3] - values[2]) / height))))
-			{
-				
-				img[i][j] = fg_colour;
-
-			}
-			else
-			{
-				
-				img[i][j] = bg_colour;
-
-			}
-			});
-		Mandelbrot::line_completed[i] = true;
-		Mandelbrot::write_condition[i].notify_one();
-		});
-
-
-
-}
-
-template<> void Mandelbrot::generate_nested_parallel_for_func<std::uint32_t>(double values[4], std::uint32_t(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads)
-{
-
-	std::mutex image_mut;
-	tbb::task_arena thread_limit(threads);
-	thread_limit.execute([&] {
-
-		tbb::parallel_for(0, height, [&](int i) {
-			std::lock_guard<std::mutex> lg(line_mutex[i]);
-			tbb::parallel_for(0, width, [&](int j) {
-
-				if (Mandelbrot::compute_single_pixel((values[0] + (j * (values[1] - values[0]) / width), values[2] + (i * (values[3] - values[2]) / height))))
-				{
-					std::unique_lock<std::mutex> lock(image_mut);
-					img[i][j] = fg_colour;
-
-				}
-				else
-				{
-					std::unique_lock<std::mutex> lock(image_mut);
-					img[i][j] = bg_colour;
-
-				}
-				});
-			Mandelbrot::line_completed[i] = true;
-			Mandelbrot::write_condition[i].notify_one();
-			});
-
-		});
-
-
-
-}
-
-template<> void Mandelbrot::generate_nested_parallel_for_func<std::atomic<std::uint32_t>>(double values[4], std::atomic<std::uint32_t>(&img)[height][width], uint32_t bg_colour, uint32_t fg_colour, int threads)
-{
-
-	
-	tbb::task_arena thread_limit(threads);
-	thread_limit.execute([&] {
-
-		tbb::parallel_for(0, height, [&](int i) {
-			std::lock_guard<std::mutex> lg(line_mutex[i]);
-			tbb::parallel_for(0, width, [&](int j) {
-
-				if (Mandelbrot::compute_single_pixel((values[0] + (j * (values[1] - values[0]) / width), values[2] + (i * (values[3] - values[2]) / height))))
-				{
-					
-					img[i][j] = fg_colour;
-
-				}
-				else
-				{
-					
-					img[i][j] = bg_colour;
-
-				}
-				});
-			Mandelbrot::line_completed[i] = true;
-			Mandelbrot::write_condition[i].notify_one();
-			});
-
-		});
 
 
 
